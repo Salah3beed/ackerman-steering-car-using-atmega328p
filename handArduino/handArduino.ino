@@ -4,17 +4,20 @@
 #include <Wire.h>
 #define echoPin 9 // attach pin D2 Arduino to pin Echo of HC-SR04
 #define trigPin 4 //attach pin D3 Arduino to pin Trig of HC-SR04
+#define MAX_LEFT_POT 720
+#define MAX_RIGHT_POT 290
+#define MAX_PWM 250
+
 RF24 radio(7, 8); // CE, CSN
-void calculate_IMU_error();
+//void calculate_IMU_error();
 const byte address[6] = "00001";
 struct Data_Package {
   boolean backward;
   float roll=485;
   float pitch=0.0;
-  float yaw;
-  float e = 3.141592;
-  char f[10] = "Hello There";
+
 };
+
 Data_Package data; //Create a variable with the above structure
 float AccX, AccY, AccZ;
 float accAngleX, accAngleY;
@@ -33,18 +36,27 @@ void setup() {
     radio.openWritingPipe(address);
     radio.setPALevel(RF24_PA_MIN);
     radio.stopListening();
+
+  // FOR ACC 
+
   Wire.begin();                      // Initialize comunication
   Wire.beginTransmission(MPU);       // Start communication with MPU6050 // MPU=0x68
   Wire.write(0x6B);                  // Talk to the register 6B
   Wire.write(0x00);                  // Make reset - place a 0 into the 6B register
   Wire.endTransmission(true);        //end the transmission
-  pinMode(trigPin, OUTPUT); // Sets the trigPin as an OUTPUT
+
+  // END FOR ACC
+ 
+ pinMode(trigPin, OUTPUT); // Sets the trigPin as an OUTPUT
   pinMode(echoPin, INPUT); // Sets the echoPin as an INPUT
 
 }
 
 void loop() {
-  // === Read acceleromter data === //
+
+
+// ACC
+ // === Read acceleromter data === //
   Wire.beginTransmission(MPU);
   Wire.write(0x3B); // Start with register 0x3B (ACCEL_XOUT_H)
   Wire.endTransmission(false);
@@ -54,51 +66,31 @@ void loop() {
   AccY = (Wire.read() << 8 | Wire.read()) / 16384.0; // Y-axis value
   AccZ = (Wire.read() << 8 | Wire.read()) / 16384.0; // Z-axis value
   // Calculating Roll and Pitch from the accelerometer data
-  accAngleX = (atan(AccY / sqrt(pow(AccX, 2) + pow(AccZ, 2))) * 180 / PI)-AccErrorX; // AccErrorX ~(0.58) See the calculate_IMU_error()custom function for more details
-  accAngleY = (atan(-1 * AccX / sqrt(pow(AccY, 2) + pow(AccZ, 2))) * 180 / PI) -AccErrorY; // AccErrorY ~(-1.58)
-  // === Read gyroscope data === //
-  Wire.beginTransmission(MPU);
-  Wire.write(0x43); // Gyro data first register address 0x43
-  Wire.endTransmission(false);
-  Wire.requestFrom(MPU, 6, true); // Read 4 registers total, each axis value is stored in 2 registers
+  accAngleX = (atan(AccY / sqrt(pow(AccX, 2) + pow(AccZ, 2))) * 180 / PI)-AccErrorX; // We will consider the errors to be zero(as default) for now
+  accAngleY = (atan(-1 * AccX / sqrt(pow(AccY, 2) + pow(AccZ, 2))) * 180 / PI) -AccErrorY;
   data.roll =  accAngleX;
   data.pitch =  accAngleY;
   
-  if(pitch<0){
+  if(data.pitch<0){
     data.pitch = -1 * data.pitch;
     data.backward=true;
   }else{
     data.backward=false;
   }
-  data.pitch =   map(data.pitch,0,90,0,255);
-  data.roll = map(data.roll,-90,90,75,485); 
+  data.pitch =   map(data.pitch,0,90,0,MAX_PWM);
+  data.roll = map(data.roll,-90,90,MAX_LEFT_POT,MAX_RIGHT_POT); 
+
+
 radio.write(&data, sizeof(Data_Package));
+
 Serial.println(data.pitch);
 Serial.println(data.roll);
 
 
- digitalWrite(trigPin, LOW);
 
-  //delayMicroseconds(100);
+// END ACC
 
-  // Sets the trigPin HIGH (ACTIVE) for 10 microseconds)
 
-  digitalWrite(trigPin, HIGH);
-
-  //delayMicroseconds(100);
-
-  digitalWrite(trigPin, LOW);
-
-  // Reads the echoPin, returns the sound wave travel time in microseconds
-
-  //duration = pulseIn(echoPin, HIGH);
-
-  // Calculating the distance
-
-  distance = duration * 0.034 / 2; // Speed of sound wave divided by 2 (go and back) distance
-
-//Serial.println(distance);
-  
   
   }
 
