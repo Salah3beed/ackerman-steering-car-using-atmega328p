@@ -65,14 +65,14 @@ float pitch;
 const int MPU = 0x68; // MPU6050 I2C address
 int c = 0;
 float ref=0.0;
-
+// END FOR ACC
 
 // FOR CONTROL 
 float Kp;
 float U=1;
 
 
-// END FOR ACC
+
 
 char x[8] ;
 
@@ -233,7 +233,7 @@ else{
   }
   analogWrite(PWM_Pin_Forward, Kd*data.pitch);
 
-  //dtostrf(roll, 5, 2, data.f);
+  //dtostrf(roll, 5, 2, data.f); // Converting double into charecter array (for sending with NRF)
 
 // END BACK MOTORS CONTROL
   
