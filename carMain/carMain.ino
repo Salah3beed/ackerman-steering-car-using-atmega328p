@@ -128,6 +128,7 @@ pinMode(A0, INPUT);
       backward = data.backward;
       pitch = data.pitch;
       roll = data.roll;
+      Serial.println("I'm Finished");
   }
 }
 
@@ -208,7 +209,7 @@ void setup()
     Serial.begin(9600);
     while(!Serial);  // Wait for Serial terminal to open port before starting program
     
- Serial.println("");
+    Serial.println("");
     Serial.println("******************************");
     Serial.println("        Program start         ");
     Serial.println("******************************");
