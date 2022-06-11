@@ -4,8 +4,8 @@
 #include <RF24.h>
 #include <RF24_config.h>
 
-#define echoPin 10 
-#define trigPin 4 
+#define echoPin A4 
+#define trigPin A5 
 
 #define F_MOTOR_CW 8
 #define F_MOTOR_CCW 9
@@ -21,7 +21,7 @@
 #define ABOUT_TO_CRASH  5
 
 #define MAX_PWM 250
-#define PWM_Pin 3 /* give PWM_Pin name to D3 pin */
+#define PWM_Pin 4 /* give PWM_Pin name to D3 pin */
 #define PWM_Pin_Forward  5 /* give PWM_Pin name to D5 pin */
 
 RF24 radio(0,2); // CE, CSN
@@ -64,13 +64,15 @@ void setup() {
   pinMode(7,OUTPUT);
   pinMode(15 ,INPUT);
   pinMode(A0 ,INPUT);
-    pinMode(trigPin, OUTPUT); // Sets the trigPin as an OUTPUT
-  //pinMode(echoPin, INPUT); // Sets the echoPin as an INPUT
+  pinMode(trigPin, OUTPUT); // Sets the trigPin as an OUTPUT
+  pinMode(echoPin, INPUT); // Sets the echoPin as an INPUT
 
 }
 void loop() {
 
 Kp=map(analogRead(A0),0,1023,0,40);
+
+Kp=5;
 //
 //Serial.println(Kp);
 
@@ -106,28 +108,28 @@ Kp=map(analogRead(A0),0,1023,0,40);
 
 
 // END SERVO CONTROL
-//
-//// ULTRA SONIC
-//
-// digitalWrite(trigPin, LOW);
-//
-//  delayMicroseconds(100);
-//
-//  // Sets the trigPin HIGH (ACTIVE) for 10 microseconds)
-//
-//  digitalWrite(trigPin, HIGH);
-//
-//  delayMicroseconds(100);
-//
-//  digitalWrite(trigPin, LOW);
-//
-//  // Reads the echoPin, returns the sound wave travel time in microseconds
-//
-//  duration = pulseIn(echoPin, HIGH);
-//
-//  // Calculating the distance
-//
-//  distance = duration * 0.034 / 2; // Speed of sound wave divided by 2 (go and back) distance
+
+// ULTRA SONIC
+
+ digitalWrite(trigPin, LOW);
+
+  delayMicroseconds(100);
+
+  // Sets the trigPin HIGH (ACTIVE) for 10 microseconds)
+
+  digitalWrite(trigPin, HIGH);
+
+  delayMicroseconds(100);
+
+  digitalWrite(trigPin, LOW);
+
+  // Reads the echoPin, returns the sound wave travel time in microseconds
+
+  duration = pulseIn(echoPin, HIGH);
+
+  // Calculating the distance
+
+  distance = duration * 0.034 / 2; // Speed of sound wave divided by 2 (go and back) distance
 if(! data.backward){
 if(distance<ABOUT_TO_CRASH ){
   Kd=0;
@@ -139,7 +141,7 @@ else if(distance<ALLOWANCE_DISTANCE){
 else{
   Kd=1;
 }
-//Serial.println(distance);
+Serial.println(distance);
 //
 //Serial.println(Kd);
 
@@ -158,7 +160,7 @@ else{
     digitalWrite(B_MOTORS_B,LOW);
 
   }
-  analogWrite(PWM_Pin_Forward, data.pitch);
+  analogWrite(PWM_Pin_Forward, Kd*data.pitch);
 
   //dtostrf(roll, 5, 2, data.f); // Converting double into charecter array (for sending with NRF)
 
