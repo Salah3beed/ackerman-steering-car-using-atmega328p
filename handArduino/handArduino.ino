@@ -12,7 +12,7 @@ RF24 radio(7, 8); // CE, CSN
 //void calculate_IMU_error();
 const byte address[6] = "00001";
 struct Data_Package {
-  boolean backward;
+  int backward;
   float roll=485;
   float pitch=0.0;
 
@@ -73,9 +73,9 @@ void loop() {
   
   if(data.pitch<0){
     data.pitch = -1 * data.pitch;
-    data.backward=true;
+    data.backward=1;
   }else{
-    data.backward=false;
+    data.backward=0;
   }
   data.pitch =   map(data.pitch,0,90,0,MAX_PWM);
   data.roll = map(data.roll,-90,90,MAX_LEFT_POT,MAX_RIGHT_POT); 

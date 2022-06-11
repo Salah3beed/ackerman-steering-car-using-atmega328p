@@ -18,13 +18,14 @@
 #define MAX_PWM 250
 #define PWM_Pin 4 /*give PWM_Pin name to D3 pin */ 
 #define PWM_Pin_Forward 5 /*give PWM_Pin name to D5 pin */
-
+int backward;
+float pitch;
 RF24 radio(0, 2);  // CE, CSN
 const byte address[6] = "00001";
 
 struct Data_Package
 {
-  boolean backward;
+  int backward;
   float roll = 454;
   float pitch = 0.0;
 };
@@ -51,22 +52,22 @@ void setup()
   pinMode(A0, INPUT);
   xTaskCreate(
     UltraSonic, "UltraSonic", 128 // Stack size
-  , NULL, 2 // priority
+  , NULL, 4 // priority
   , NULL);
 
   xTaskCreate(
     Receive, "Receive", 128 // Stack size
-  , NULL, 2 // priority
+  , NULL, 5 // priority
   , NULL);
 
   xTaskCreate(
     Servo, "Servo", 128 // Stack size
-  , NULL, 2 // priority
+  , NULL, 4 // priority
   , NULL);
 
     xTaskCreate(
     BackMotors, "BackMotors", 128 // Stack size
-  , NULL, 2 // priority
+  , NULL, 6 // priority
   , NULL);
   
   vTaskStartScheduler();
@@ -90,7 +91,7 @@ void UltraSonic(void *pvParameters) // This is an UltraSonic task.
   for (;;)  // A Task shall never return or exit.
   {
     // ULTRA SONIC
-Serial.println("I'm in the ultrasonic");
+//Serial.println("I'm in the ultrasonic");
     digitalWrite(trigPin, LOW);
 
     delayMicroseconds(100);
@@ -114,12 +115,11 @@ Serial.println("I'm in the ultrasonic");
     Serial.println(distance);
 
     
-  if (!data.backward)
+  if (data.backward==0)
   {
     if (distance < ABOUT_TO_CRASH)
     {
       Kd = 0;
-      Serial.println("Crash");
     }
     else if (distance < ALLOWANCE_DISTANCE)
     {
@@ -148,12 +148,25 @@ void Receive(void *pvParameters)  // This is an UltraSonic task.
 
   for (;;)  // A Task shall never return or exit.
   {
-    Serial.println("I'm in the receive");
+   // Serial.println("I'm in the receive");
     // Check whether there is data to be received
     if (radio.available())
     {
       radio.read(&data, sizeof(Data_Package));  // Read the whole data and store it into the 'data' structure
     }
+  
+  Serial.println("Pitch: ");
+  Serial.print(data.pitch);
+    Serial.println("Roll: ");
+  Serial.print(data.roll);
+    Serial.println("Backward: ");
+  Serial.print(data.backward);
+      Serial.println();
+
+      backward = data.backward;
+      pitch = data.pitch;
+   
+
   }
 }
 
@@ -167,7 +180,7 @@ void Servo(void *pvParameters)  // This is an UltraSonic task.
   pinMode(F_MOTOR_CCW, OUTPUT);
   for (;;)  // A Task shall never return or exit.
   {
-    Serial.println("I'm in the servo");
+    //Serial.println("I'm in the servo");
     // SERVO CONTROL
     actual = analogRead(REF_F_MOTOR);
     //  E=(data.roll)-actual;
@@ -193,6 +206,7 @@ void Servo(void *pvParameters)  // This is an UltraSonic task.
     analogWrite(PWM_Pin, (U / 1023) *MAX_PWM);
 
     // END SERVO CONTROL
+    
   }
 }
 
@@ -202,26 +216,29 @@ void BackMotors(void *pvParameters) // This is an UltraSonic task.
   pinMode(PWM_Pin_Forward, OUTPUT); /*declare D3 pin as an output pin */
   pinMode(B_MOTORS_B, OUTPUT);
   pinMode(B_MOTORS_F, OUTPUT);
+  
   for (;;)  // A Task shall never return or exit. {
-   Serial.println("Zeyad");
     // BACK MOTORS CONTROL
     /*Produce 50% duty cycle PWM on D3 */
-    if (data.backward)
+    if (backward==1)
     {
+      Serial.println("BACKWARD");
       digitalWrite(B_MOTORS_F, LOW);
       digitalWrite(B_MOTORS_B, HIGH);
+      analogWrite(PWM_Pin_Forward, pitch);
 
     }
   else
   {
+ 
     digitalWrite(B_MOTORS_F, HIGH);
     digitalWrite(B_MOTORS_B, LOW);
-
+    analogWrite(PWM_Pin_Forward, pitch);
   }
-
- Serial.print("KH");
-  analogWrite(PWM_Pin_Forward, 1 *data.pitch);
-
+Serial.println("PITCH: ");
+Serial.println(pitch);
+//analogWrite(PWM_Pin_Forward, pitch);
+Serial.print("TASK FINISHED");
   //dtostrf(roll, 5, 2, data.f);  // Converting double into charecter array (for sending with NRF)
 
   // END BACK MOTORS CONTROL
