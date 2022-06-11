@@ -38,7 +38,7 @@ float E = 0.0;
 float Kd = 0.0;
 
 // FOR CONTROL 
-float Kp = 5;
+float Kp = 5.0;
 //Kp = map(analogRead(A0), 0, 1023, 0, 40);
 
 float U;
@@ -47,35 +47,7 @@ long duration;  // variable for the duration of sound wave travel
 
 int distance; // variable for the distance measurement
 
-void setup()
-{
-  Serial.begin(9600);
-  pinMode(A0, INPUT);
-  xTaskCreate(
-    UltraSonic, "UltraSonic", 128 // Stack size
-  , NULL, 4 // priority
-  , NULL);
 
-  xTaskCreate(
-    Receive, "Receive", 128 // Stack size
-  , NULL, 5 // priority
-  , NULL);
-
-  xTaskCreate(
-    Servo, "Servo", 128 // Stack size
-  , NULL, 9 // priority
-  , NULL);
-
-    xTaskCreate(
-    BackMotors, "BackMotors", 128 // Stack size
-  , NULL, 6 // priority
-  , NULL);
-  
-  vTaskStartScheduler();
-
-}
-
-void loop() {}
 
 /*--------------------------------------------------*/
 /*---------------------- Tasks ---------------------*/
@@ -84,8 +56,7 @@ void loop() {}
 void UltraSonic(void *pvParameters) // This is an UltraSonic task.
 {
   (void) pvParameters;
-#define ALLOWANCE_DISTANCE 30.0
-#define ABOUT_TO_CRASH 5
+
   pinMode(trigPin, OUTPUT); // Sets the trigPin as an OUTPUT
   pinMode(echoPin, INPUT);  // Sets the echoPin as an INPUT
 
@@ -95,13 +66,13 @@ void UltraSonic(void *pvParameters) // This is an UltraSonic task.
 //Serial.println("I'm in the ultrasonic");
     digitalWrite(trigPin, LOW);
 
-    delayMicroseconds(100);
+    vTaskDelay(0.1/portTICK_PERIOD_MS);
 
     // Sets the trigPin HIGH (ACTIVE) for 10 microseconds)
 
     digitalWrite(trigPin, HIGH);
 
-    delayMicroseconds(100);
+    vTaskDelay(0.1/portTICK_PERIOD_MS);
 
     digitalWrite(trigPin, LOW);
 
@@ -113,10 +84,9 @@ void UltraSonic(void *pvParameters) // This is an UltraSonic task.
 
     distance = duration *0.034 / 2; // Speed of sound wave divided by 2 (go and back) distance
 
-    Serial.println(distance);
 
     
-  if (data.backward==0)
+  if (backward==0)
   {
     if (distance < ABOUT_TO_CRASH)
     {
@@ -132,7 +102,6 @@ void UltraSonic(void *pvParameters) // This is an UltraSonic task.
     Kd = 1;
   }
 
-  Serial.println(Kd);
 
     // END ULTRASONIC
   }
@@ -141,7 +110,7 @@ void UltraSonic(void *pvParameters) // This is an UltraSonic task.
 void Receive(void *pvParameters)  // This is an UltraSonic task.
 {
   (void) pvParameters;
-
+pinMode(A0, INPUT);
   radio.begin();
   radio.openReadingPipe(0, address);
   radio.setPALevel(RF24_PA_MIN);
@@ -159,11 +128,10 @@ void Receive(void *pvParameters)  // This is an UltraSonic task.
       backward = data.backward;
       pitch = data.pitch;
       roll = data.roll;
-
   }
 }
 
-void Servo(void *pvParameters)  // This is an UltraSonic task.
+void ServoAngle(void *pvParameters)  // This is an UltraSonic task.
 {
   (void) pvParameters;
 
@@ -176,10 +144,7 @@ void Servo(void *pvParameters)  // This is an UltraSonic task.
     //Serial.println("I'm in the servo");
     // SERVO CONTROL
     actual = analogRead(REF_F_MOTOR);
-    //  E=(data.roll)-actual;
-    //Serial.println(actual);
     E = roll - actual;
-Serial.println(roll);
     /*Produce 50% duty cycle PWM on D3 */
     if (E < 0)
     {
@@ -191,11 +156,9 @@ Serial.println(roll);
     {
       digitalWrite(F_MOTOR_CCW, HIGH);
       digitalWrite(F_MOTOR_CW, LOW);
-
     }
 
     U = Kp * E;
-
     analogWrite(PWM_Pin, (U / 1023) *MAX_PWM);
 
     // END SERVO CONTROL
@@ -227,6 +190,7 @@ void BackMotors(void *pvParameters) // This is an UltraSonic task.
     digitalWrite(B_MOTORS_B, LOW);
     analogWrite(PWM_Pin_Forward, Kd*pitch);
   }
+  // Don't write any code here it will not be read!!
 //analogWrite(PWM_Pin_Forward, pitch);
 
   //dtostrf(roll, 5, 2, data.f);  // Converting double into charecter array (for sending with NRF)
@@ -234,3 +198,44 @@ void BackMotors(void *pvParameters) // This is an UltraSonic task.
   // END BACK MOTORS CONTROL
 
 }
+
+
+
+
+
+void setup()
+{
+    Serial.begin(9600);
+    while(!Serial);  // Wait for Serial terminal to open port before starting program
+    
+ Serial.println("");
+    Serial.println("******************************");
+    Serial.println("        Program start         ");
+    Serial.println("******************************");
+    
+  
+  xTaskCreate(
+    UltraSonic, "UltraSonic", 128 // Stack size
+  , NULL, 2 // priority
+  , NULL);
+
+  xTaskCreate(
+    Receive, "Receive", 128 // Stack size
+  , NULL, 2 // priority
+  , NULL);
+
+  xTaskCreate(
+    ServoAngle, "ServoAngle", 128 // Stack size
+  , NULL, 2 // priority
+  , NULL);
+
+    xTaskCreate(
+    BackMotors, "BackMotors", 128 // Stack size
+  , NULL, 2 // priority
+  , NULL);
+  
+  vTaskStartScheduler();
+
+}
+
+void loop() {}
