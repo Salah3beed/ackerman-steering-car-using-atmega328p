@@ -20,6 +20,7 @@
 #define PWM_Pin_Forward 5 /*give PWM_Pin name to D5 pin */
 int backward;
 float pitch;
+float roll;
 RF24 radio(0, 2);  // CE, CSN
 const byte address[6] = "00001";
 
@@ -37,7 +38,7 @@ float E = 0.0;
 float Kd = 0.0;
 
 // FOR CONTROL 
-float Kp = 6.6;
+float Kp = 5;
 //Kp = map(analogRead(A0), 0, 1023, 0, 40);
 
 float U;
@@ -62,7 +63,7 @@ void setup()
 
   xTaskCreate(
     Servo, "Servo", 128 // Stack size
-  , NULL, 4 // priority
+  , NULL, 9 // priority
   , NULL);
 
     xTaskCreate(
@@ -155,17 +156,9 @@ void Receive(void *pvParameters)  // This is an UltraSonic task.
       radio.read(&data, sizeof(Data_Package));  // Read the whole data and store it into the 'data' structure
     }
   
-  Serial.println("Pitch: ");
-  Serial.print(data.pitch);
-    Serial.println("Roll: ");
-  Serial.print(data.roll);
-    Serial.println("Backward: ");
-  Serial.print(data.backward);
-      Serial.println();
-
       backward = data.backward;
       pitch = data.pitch;
-   
+      roll = data.roll;
 
   }
 }
@@ -185,8 +178,8 @@ void Servo(void *pvParameters)  // This is an UltraSonic task.
     actual = analogRead(REF_F_MOTOR);
     //  E=(data.roll)-actual;
     //Serial.println(actual);
-    E = (data.roll) - actual;
-
+    E = roll - actual;
+Serial.println(roll);
     /*Produce 50% duty cycle PWM on D3 */
     if (E < 0)
     {
@@ -222,10 +215,9 @@ void BackMotors(void *pvParameters) // This is an UltraSonic task.
     /*Produce 50% duty cycle PWM on D3 */
     if (backward==1)
     {
-      Serial.println("BACKWARD");
       digitalWrite(B_MOTORS_F, LOW);
       digitalWrite(B_MOTORS_B, HIGH);
-      analogWrite(PWM_Pin_Forward, pitch);
+      analogWrite(PWM_Pin_Forward, Kd*pitch);
 
     }
   else
@@ -233,12 +225,10 @@ void BackMotors(void *pvParameters) // This is an UltraSonic task.
  
     digitalWrite(B_MOTORS_F, HIGH);
     digitalWrite(B_MOTORS_B, LOW);
-    analogWrite(PWM_Pin_Forward, pitch);
+    analogWrite(PWM_Pin_Forward, Kd*pitch);
   }
-Serial.println("PITCH: ");
-Serial.println(pitch);
 //analogWrite(PWM_Pin_Forward, pitch);
-Serial.print("TASK FINISHED");
+
   //dtostrf(roll, 5, 2, data.f);  // Converting double into charecter array (for sending with NRF)
 
   // END BACK MOTORS CONTROL
