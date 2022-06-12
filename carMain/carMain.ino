@@ -1,3 +1,4 @@
+#include <PID_v1.h>
 #include <Arduino_FreeRTOS.h>
 #include <SPI.h>
 #include <nRF24L01.h>
@@ -11,19 +12,22 @@
 #define B_MOTORS_B 6
 #define B_MOTORS_F 7
 #define REF_F_MOTOR 15
-#define MAX_LEFT_POT 720
-#define MAX_RIGHT_POT 290
-#define ALLOWANCE_DISTANCE 30.0
-#define ABOUT_TO_CRASH 5
-#define MAX_PWM 250
-#define PWM_Pin 4 /*give PWM_Pin name to D3 pin */ 
-#define PWM_Pin_Forward 5 /*give PWM_Pin name to D5 pin */
+#define MAX_LEFT_POT 720  // Maximum potentiometer value on the hacked servo when turning left
+#define MAX_RIGHT_POT 290 // Maximum potentiometer value on the hacked servo when turning right
+#define ALLOWANCE_DISTANCE 30.0 // The distance below which the car would start decrasing its speed
+#define ABOUT_TO_CRASH 5  // The distance below which (and included) the car stops its motion
+#define REF_INTERVAL 430; // The interval of the potentiometer (MAX_LEFT_POT-MAX_RIGHT_POT)
+#define MAX_PWM 255
+#define PWM_Pin 4
+#define PWM_Pin_Forward 5
 int backward;
 float pitch;
-float roll;
-RF24 radio(0, 2);  // CE, CSN
+double roll;
+RF24 radio(0, 2); // CE, CSN 
+
 const byte address[6] = "00001";
 
+// Defining a placeholder (structure) to hold all the data to be recieved from the transmitter 
 struct Data_Package
 {
   int backward;
@@ -33,25 +37,24 @@ struct Data_Package
 
 Data_Package data;  // Create a variable with the above structure
 
-float actual = 0.0;
+double actual = 0.0;
 float E = 0.0;
 float Kd = 0.0;
 
 // FOR CONTROL 
-float Kp = 5.0;
-//Kp = map(analogRead(A0), 0, 1023, 0, 40);
+double Kp = 5;
+int Ki = 0;
+int Kdd = 0;
 
-float U;
-
+double U;
+//PID myPID(&actual, &U, &roll,Kp,Ki,Kdd, DIRECT);
 long duration;  // variable for the duration of sound wave travel
 
 int distance; // variable for the distance measurement
 
-
-
-/*--------------------------------------------------*/
-/*---------------------- Tasks ---------------------*/
-/*--------------------------------------------------*/
+/*----------------------------------------------------------*/
+/*---------------------- Tasks Section ---------------------*/
+/*----------------------------------------------------------*/
 
 void UltraSonic(void *pvParameters) // This is an UltraSonic task.
 {
@@ -62,17 +65,15 @@ void UltraSonic(void *pvParameters) // This is an UltraSonic task.
 
   for (;;)  // A Task shall never return or exit.
   {
-    // ULTRA SONIC
-//Serial.println("I'm in the ultrasonic");
     digitalWrite(trigPin, LOW);
 
-    vTaskDelay(0.1/portTICK_PERIOD_MS);
+    vTaskDelay(0.1 / portTICK_PERIOD_MS);
 
     // Sets the trigPin HIGH (ACTIVE) for 10 microseconds)
 
     digitalWrite(trigPin, HIGH);
 
-    vTaskDelay(0.1/portTICK_PERIOD_MS);
+    vTaskDelay(0.1 / portTICK_PERIOD_MS);
 
     digitalWrite(trigPin, LOW);
 
@@ -84,33 +85,30 @@ void UltraSonic(void *pvParameters) // This is an UltraSonic task.
 
     distance = duration *0.034 / 2; // Speed of sound wave divided by 2 (go and back) distance
 
-
-    
-  if (backward==0)
-  {
-    if (distance < ABOUT_TO_CRASH)
+    if (backward == 0)  // checking if the moving is forward motion
     {
-      Kd = 0;
+      if (distance < ABOUT_TO_CRASH)
+      {
+        Kd = 0;
+      }
+      else if (distance < ALLOWANCE_DISTANCE)
+      {
+        Kd = distance / ALLOWANCE_DISTANCE;
+      }
     }
-    else if (distance < ALLOWANCE_DISTANCE)
+    else
     {
-      Kd = distance / ALLOWANCE_DISTANCE;
+      Kd = 1;
     }
-  }
-  else
-  {
-    Kd = 1;
-  }
 
-
-    // END ULTRASONIC
+    // Kd will then be used in the left motors PWM
   }
 }
 
-void Receive(void *pvParameters)  // This is an UltraSonic task.
+void Receive(void *pvParameters)  // This is an NRF recieve task.
 {
   (void) pvParameters;
-pinMode(A0, INPUT);
+  pinMode(A0, INPUT);
   radio.begin();
   radio.openReadingPipe(0, address);
   radio.setPALevel(RF24_PA_MIN);
@@ -118,21 +116,22 @@ pinMode(A0, INPUT);
 
   for (;;)  // A Task shall never return or exit.
   {
-   // Serial.println("I'm in the receive");
+    // Serial.println("I'm in the receive");
     // Check whether there is data to be received
     if (radio.available())
     {
       radio.read(&data, sizeof(Data_Package));  // Read the whole data and store it into the 'data' structure
     }
-  
-      backward = data.backward;
-      pitch = data.pitch;
-      roll = data.roll;
-      Serial.println("I'm Finished");
+
+    backward = data.backward;
+    pitch = data.pitch;
+    roll = data.roll;
+    Serial.println("I'm Finished");
+    Serial.println(roll);
   }
 }
 
-void ServoAngle(void *pvParameters)  // This is an UltraSonic task.
+void ServoAngle(void *pvParameters) // This is an ServoHacked task.
 {
   (void) pvParameters;
 
@@ -140,13 +139,14 @@ void ServoAngle(void *pvParameters)  // This is an UltraSonic task.
   pinMode(PWM_Pin, OUTPUT); /*declare D3 pin as an output pin */
   pinMode(F_MOTOR_CW, OUTPUT);
   pinMode(F_MOTOR_CCW, OUTPUT);
+  //myPID.SetMode(AUTOMATIC);
+
   for (;;)  // A Task shall never return or exit.
   {
-    //Serial.println("I'm in the servo");
-    // SERVO CONTROL
+    //Kp = map(analogRead(A0), 0, 1023, 0, 40); //This line was used to Online Tune the system using a potentiometer
     actual = analogRead(REF_F_MOTOR);
+    //myPID.Compute();  // This was used when we used D and I in the controller but we only were satisfied with P
     E = roll - actual;
-    /*Produce 50% duty cycle PWM on D3 */
     if (E < 0)
     {
       E = E *(-1);
@@ -160,39 +160,36 @@ void ServoAngle(void *pvParameters)  // This is an UltraSonic task.
     }
 
     U = Kp * E;
-    analogWrite(PWM_Pin, (U / 1023) *MAX_PWM);
-
+    analogWrite(PWM_Pin, U / REF_INTERVAL *MAX_PWM);
     // END SERVO CONTROL
-    
+
   }
 }
 
-void BackMotors(void *pvParameters) // This is an UltraSonic task.
+void BackMotors(void *pvParameters) // This is an Back Motors task.
 {
   (void) pvParameters;
-  pinMode(PWM_Pin_Forward, OUTPUT); /*declare D3 pin as an output pin */
+  pinMode(PWM_Pin_Forward, OUTPUT);
   pinMode(B_MOTORS_B, OUTPUT);
   pinMode(B_MOTORS_F, OUTPUT);
-  
+
   for (;;)  // A Task shall never return or exit. {
-    // BACK MOTORS CONTROL
-    /*Produce 50% duty cycle PWM on D3 */
-    if (backward==1)
+    if (backward == 1)
     {
       digitalWrite(B_MOTORS_F, LOW);
       digitalWrite(B_MOTORS_B, HIGH);
-      analogWrite(PWM_Pin_Forward, Kd*pitch);
+      analogWrite(PWM_Pin_Forward, Kd *pitch);
 
     }
   else
   {
- 
     digitalWrite(B_MOTORS_F, HIGH);
     digitalWrite(B_MOTORS_B, LOW);
-    analogWrite(PWM_Pin_Forward, Kd*pitch);
+    analogWrite(PWM_Pin_Forward, Kd *pitch);
   }
-  // Don't write any code here it will not be read!!
-//analogWrite(PWM_Pin_Forward, pitch);
+
+  // Any code below this comment in this task will be read by the ardunio!!!
+  //analogWrite(PWM_Pin_Forward, pitch);
 
   //dtostrf(roll, 5, 2, data.f);  // Converting double into charecter array (for sending with NRF)
 
@@ -200,21 +197,16 @@ void BackMotors(void *pvParameters) // This is an UltraSonic task.
 
 }
 
-
-
-
-
 void setup()
 {
-    Serial.begin(9600);
-    while(!Serial);  // Wait for Serial terminal to open port before starting program
-    
-    Serial.println("");
-    Serial.println("******************************");
-    Serial.println("        Program start         ");
-    Serial.println("******************************");
-    
-  
+  Serial.begin(9600);
+  while (!Serial);  // Wait for Serial terminal to open port before starting program
+
+  Serial.println("");
+  Serial.println("******************************");
+  Serial.println("        Program start         ");
+  Serial.println("******************************");
+
   xTaskCreate(
     UltraSonic, "UltraSonic", 128 // Stack size
   , NULL, 2 // priority
@@ -230,11 +222,11 @@ void setup()
   , NULL, 2 // priority
   , NULL);
 
-    xTaskCreate(
+  xTaskCreate(
     BackMotors, "BackMotors", 128 // Stack size
   , NULL, 2 // priority
   , NULL);
-  
+
   vTaskStartScheduler();
 
 }
